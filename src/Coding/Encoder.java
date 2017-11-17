@@ -1,3 +1,5 @@
+package Coding;
+
 /**
  * Encodes raw message data using some encoding algorithm, so that it can be sent and decoded later.
  */
