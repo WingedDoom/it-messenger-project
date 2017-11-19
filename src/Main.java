@@ -1,3 +1,7 @@
+import Coding.CyclicRedundancyCheck;
+
+import javax.print.DocFlavor;
+
 public class Main {
     public static void main(String[] args) {
         /*
@@ -10,5 +14,7 @@ public class Main {
         After that, socket session is created and main constantly waits for console input and prints
         any messages received from the outside.
          */
+
     }
+
 }
