@@ -56,14 +56,13 @@ public class LZ77 {
         return b;
     }
 
-    /**
-     * decompress input file and writes to output file
-     *
-     * @param inputFileName compressed input file
-     * @param outputFileName decompressed output file
-     * @throws IOException
-     */
-    public byte[] decompress(String inputFileName, String outputFileName) throws IOException {
+
+    public byte[] decompress(byte[] data) throws IOException {
+        String inputFileName = "compressedData";
+        FileOutputStream fos = new FileOutputStream(inputFileName);
+        fos.write(data);
+        fos.close();
+        String outputFileName = "temp";
         BitInputStream inputFileStream = null;
         FileChannel outputChannel = null;
         RandomAccessFile outputFileStream = null;
