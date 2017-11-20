@@ -24,7 +24,7 @@ class MinHeap {
         heap[size] = node;
         int parentIndex = (size - 1) / 2;
         int nodeIndex = size;
-        while (heap[nodeIndex].compareTo(heap[parentIndex]) > 0 && parentIndex >= 0) {
+        while (heap[nodeIndex].compareTo(heap[parentIndex]) < 0 && parentIndex >= 0) {
             swap(parentIndex, nodeIndex);
             parentIndex = (parentIndex - 1) / 2;
             nodeIndex = (nodeIndex - 1) / 2;
