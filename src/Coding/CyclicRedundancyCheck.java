@@ -10,7 +10,7 @@ import java.util.Scanner;
 /**
  * Created by Timkabor on 11/17/2017.
  */
-public class CyclicRedundancyCheck implements Encoder {
+public class CyclicRedundancyCheck implements Encoder,Decoder {
     int[] crc;
     int[] rem;
     int[] divisor = {1,1,0,1,0,1};
@@ -84,7 +84,7 @@ public class CyclicRedundancyCheck implements Encoder {
         }
         return bitSet.toByteArray();
     }
-    public void decode(byte[] message)
+    public byte[] decode(byte[] message)
     {
          /*-------------------ERROR DETECTION---------------------*/
         System.out.println();
@@ -110,12 +110,13 @@ public class CyclicRedundancyCheck implements Encoder {
             if(rem[i]!=0)
             {
                 System.out.println("Error");
-                break;
+                return null;
             }
             if(i==rem.length-1)
                 System.out.println("No Error");
         }
 
         System.out.println("THANK YOU.... :)");
+        return message;
     }
 }

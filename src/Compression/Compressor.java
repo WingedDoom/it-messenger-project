@@ -1,5 +1,7 @@
 package Compression;
 
+import java.io.IOException;
+
 /**
  * Created by Timkabor on 11/17/2017.
  */
@@ -9,5 +11,5 @@ public interface Compressor {
      * @param message Raw data.
      * @return Encoded data.
      */
-    public byte[] compress(byte[] message);
+    public byte[] compress(byte[] message) throws IOException;
 }
