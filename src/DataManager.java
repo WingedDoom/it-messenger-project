@@ -77,7 +77,7 @@ public class DataManager {
             byte[] decodedMessage = decoder.decode(bytes);
             String decompressedString;
             try {
-                decompressedString = decompressor.decompress(decodedMessage).toString();
+                decompressedString = new String(decompressor.decompress(decodedMessage));
             } catch (IOException ex) {
                 ex.printStackTrace();
                 return null;
