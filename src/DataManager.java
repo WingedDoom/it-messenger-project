@@ -33,10 +33,11 @@ public class DataManager {
             ex.printStackTrace();
             return null;
         }
-        byte[] fullCompressedMessage = new byte[compressedMessage.length + 1];
+        byte[] encodedMessage = encoder.encode(compressedMessage);
+        byte[] fullCompressedMessage = new byte[encodedMessage.length + 1];
         fullCompressedMessage[0] = 0;
         for (int i = 1; i < fullCompressedMessage.length; i++) {
-            fullCompressedMessage[i] = compressedMessage[i - 1];
+            fullCompressedMessage[i] = encodedMessage[i - 1];
         }
         return fullCompressedMessage;
     }
@@ -52,18 +53,19 @@ public class DataManager {
             ex.printStackTrace();
             return null;
         }
+        byte[] encodedFileData = encoder.encode(compressedFileData);
 
         byte[] nameData = name.getBytes();
         byte lengthByte = HelperMethods.parseByte(HelperMethods.unsignedIntToString(length));
-        byte[] fullCompressedFile = new byte[1 + length + compressedFileData.length];
+        byte[] fullCompressedFile = new byte[1 + length + encodedFileData.length];
         fullCompressedFile[0] = lengthByte;
         for (int i = 1; i < length + 1; i++) {
             fullCompressedFile[i] = nameData[i - 1];
         }
         for (int i = length + 1; i < fullCompressedFile.length; i++) {
-            fullCompressedFile[i] = compressedFileData[i - length - 1];
+            fullCompressedFile[i] = encodedFileData[i - length - 1];
         }
-        return encoder.encode(fullCompressedFile);
+        return fullCompressedFile;
     }
 
     String getMessage(byte[] encodedMessage) {
@@ -72,9 +74,10 @@ public class DataManager {
             for (int i = 0; i < bytes.length; i++) {
                 bytes[i] = encodedMessage[i + 1];
             }
+            byte[] decodedMessage = decoder.decode(bytes);
             String decompressedString;
             try {
-                decompressedString = decompressor.decompress(bytes).toString();
+                decompressedString = decompressor.decompress(decodedMessage).toString();
             } catch (IOException ex) {
                 ex.printStackTrace();
                 return null;
@@ -95,9 +98,10 @@ public class DataManager {
             for (int i = 0; i < fileBytes.length; i++) {
                 fileBytes[i] = encodedMessage[i + length + 1];
             }
+            byte[] decodedFileBytes = decoder.decode(fileBytes);
             byte[] decompressedFileBytes;
             try {
-                decompressedFileBytes = decompressor.decompress(fileBytes);
+                decompressedFileBytes = decompressor.decompress(decodedFileBytes);
             } catch (IOException ex) {
                 ex.printStackTrace();
                 return null;
