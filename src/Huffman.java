@@ -36,8 +36,10 @@ public class Huffman implements Encoder, Decoder {
             power--;
         }
 
+        int count = 0;
         for (int i = 0; i < 256; i++) {
             if (code[i] != null) {
+                count++;
                 encodedBytes += Integer.toBinaryString(((byte)(i - 128) & 0xFF) + 0x100).substring(1);
                 int encodedLength = code[i].length();
                 String encodedLengthString = "";
@@ -52,6 +54,7 @@ public class Huffman implements Encoder, Decoder {
                 encodedBytes += code[i];
             }
         }
+
         int numberOfZeros = (encodedBytes.length() + bits.getSize() + 3) % 8;
         numberOfZeros = (8 - numberOfZeros) % 8;
         String numberOfZerosString = "";
@@ -91,7 +94,7 @@ public class Huffman implements Encoder, Decoder {
         while (pq.getSize() > 1) {
             Node left = pq.dequeue();
             Node right = pq.dequeue();
-            Node parent = new Node((byte)0, left.getFrequency() + right.getFrequency(), left, right);
+            Node parent = new Node(null, left.getFrequency() + right.getFrequency(), left, right);
             pq.enqueue(parent);
         }
 
@@ -109,14 +112,20 @@ public class Huffman implements Encoder, Decoder {
     }
 
     private static FixedSizeBitSet compress(String[] codes, byte[] byteArray) {
-        String enc = "";
+        BitSet bits = new BitSet();
+        int length = 0;
         for (byte b : byteArray) {
             String code = codes[(int)b + 128];
-            enc += code;
+            for (int i = 0; i < code.length(); i++) {
+                if (code.charAt(i) == '1') {
+                    bits.set(length + i);
+                }
+            }
+            length += code.length();
         }
-        FixedSizeBitSet bitSet = new FixedSizeBitSet(enc.length());
-        for (int i = 0; i < enc.length(); i++) {
-            if (enc.charAt(i) == '1') {
+        FixedSizeBitSet bitSet = new FixedSizeBitSet(length);
+        for (int i = 0; i < length; i++) {
+            if (bits.get(i) == true) {
                 bitSet.getBits().set(i);
             }
         }
