@@ -6,35 +6,48 @@ import java.nio.file.Files;
 import DSA.FixedSizeBitSet;
 import DSA.HelperMethods;
 
+import Coding.*;
+import Compression.*;
+
 /**
  * Created by markzaharov on 17.11.2017.
  */
 public class DataManager {
     Encoder encoder;
     Decoder decoder;
+    Compressor compressor;
+    Decompressor decompressor;
 
-    public DataManager(Encoder encoder, Decoder decoder) {
+    public DataManager(Encoder encoder, Decoder decoder, Compressor compressor, Decompressor decompressor) {
         this.encoder = encoder;
         this.decoder = decoder;
+        this.compressor = compressor;
+        this.decompressor = decompressor;
     }
 
-    byte[] encodeMessage(String message) {
-        byte[] encodedMessage = encoder.encode(message.getBytes());
-        byte[] fullEncodedMessage = new byte[encodedMessage.length + 1];
-        fullEncodedMessage[0] = 0;
-        for (int i = 1; i < fullEncodedMessage.length; i++) {
-            fullEncodedMessage[i] = encodedMessage[i - 1];
+    byte[] compressAndEncodeMessage(String message) {
+        byte[] compressedMessage;
+        try {
+            compressedMessage = compressor.compress(message.getBytes());
+        } catch (IOException ex) {
+            ex.printStackTrace();
+            return null;
         }
-        return fullEncodedMessage;
+        byte[] fullCompressedMessage = new byte[compressedMessage.length + 1];
+        fullCompressedMessage[0] = 0;
+        for (int i = 1; i < fullCompressedMessage.length; i++) {
+            fullCompressedMessage[i] = compressedMessage[i - 1];
+        }
+        return fullCompressedMessage;
     }
 
-    byte[] encodeFileAtPath(String path) {
+    byte[] compressAndEncodeFileAtPath(String path) {
         File file = new File(path);
         String name = file.getName();
         int length = name.length();
-        byte[] encodedFileData;
+        byte[] compressedFileData;
         try {
-            encodedFileData = encoder.encode(Files.readAllBytes(file.toPath()));
+            compressedFileData = compressor.compress(Files.readAllBytes(file.toPath()));
         } catch (IOException ex) {
             ex.printStackTrace();
             return null;
@@ -42,15 +55,15 @@ public class DataManager {
 
         byte[] nameData = name.getBytes();
         byte lengthByte = HelperMethods.parseByte(HelperMethods.unsignedIntToString(length));
-        byte[] fullEncodedFile = new byte[1 + length + encodedFileData.length];
-        fullEncodedFile[0] = lengthByte;
+        byte[] fullCompressedFile = new byte[1 + length + compressedFileData.length];
+        fullCompressedFile[0] = lengthByte;
         for (int i = 1; i < length + 1; i++) {
-            fullEncodedFile[i] = nameData[i - 1];
+            fullCompressedFile[i] = nameData[i - 1];
         }
-        for (int i = length + 1; i < fullEncodedFile.length; i++) {
-            fullEncodedFile[i] = encodedFileData[i - length - 1];
+        for (int i = length + 1; i < fullCompressedFile.length; i++) {
+            fullCompressedFile[i] = compressedFileData[i - length - 1];
         }
-        return fullEncodedFile;
+        return encoder.encode(fullCompressedFile);
     }
 
     String getMessage(byte[] encodedMessage) {
@@ -59,7 +72,14 @@ public class DataManager {
             for (int i = 0; i < bytes.length; i++) {
                 bytes[i] = encodedMessage[i + 1];
             }
-            return bytes.toString();
+            String decompressedString;
+            try {
+                decompressedString = decompressor.decompress(bytes).toString();
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                return null;
+            }
+            return decompressedString;
         } else {
             int length = 0;
             FixedSizeBitSet lengthBits = HelperMethods.bitSetfromByteArray(new byte[] { encodedMessage[0] });
@@ -75,8 +95,15 @@ public class DataManager {
             for (int i = 0; i < fileBytes.length; i++) {
                 fileBytes[i] = encodedMessage[i + length + 1];
             }
+            byte[] decompressedFileBytes;
+            try {
+                decompressedFileBytes = decompressor.decompress(fileBytes);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+                return null;
+            }
             try (FileOutputStream fos = new FileOutputStream(name)) {
-                fos.write(fileBytes);
+                fos.write(decompressedFileBytes);
             } catch (IOException ioe) {
                 ioe.printStackTrace();
             }
