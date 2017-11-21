@@ -57,4 +57,22 @@ public class HelperMethods {
         }
         return s;
     }
+
+    static public String byteToString(byte b) {
+        String s = "";
+        int power = 6;
+        if (b < 0) {
+            s += "1";
+            b += 128;
+        } else {
+            s += "0";
+        }
+        while (power >= 0) {
+            int powerOfTwo = (int)Math.pow(2, power);
+            s += b / powerOfTwo;
+            b %= powerOfTwo;
+            power--;
+        }
+        return s;
+    }
 }

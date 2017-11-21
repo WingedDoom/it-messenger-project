@@ -11,64 +11,81 @@ import DSA.HelperMethods;
 public class Hamming implements Encoder, Decoder {
 
     public byte[] encode(byte[] byteArray) {
-        FixedSizeBitSet bits = HelperMethods.bitSetfromByteArray(byteArray);
-        int i = 0;
-        int j = 1;
-        while (i < bits.getSize()) {
-            if (isPowerOfTwo(j)) {
-                j++;
-            } else {
-                i++;
-                j++;
-            }
-        }
-        FixedSizeBitSet bitsP = new FixedSizeBitSet(j - 1);
-        int k = 0;
-        for (i = 0; i < j; i++) {
-            if (!isPowerOfTwo(i + 1)) {
-                if (bits.getBits().get(k) == true) {
-                    bitsP.getBits().set(i);
-                }
-                k++;
-            }
-        }
-        for (i = 0; i < j; i++) {
-            if (isPowerOfTwo(i + 1)) {
-                if (checkParity(i, i + 1, bitsP)) {
-                    bitsP.getBits().set(i);
+        int finalNumberOfBytes = (int)Math.ceil(byteArray.length * 1.75);
+        FixedSizeBitSet bits = new FixedSizeBitSet(finalNumberOfBytes * 8);
+        int index = 0;
+        for (byte b : byteArray) {
+            FixedSizeBitSet bitsFP = new FixedSizeBitSet(7);
+            String s = HelperMethods.byteToString(b);
+            for (int i = 0, k = 0; i < 7; i++) {
+                if (!isPowerOfTwo(i + 1)) {
+                    if (s.charAt(k) == '1') {
+                        bitsFP.getBits().set(i);
+                    }
+                    k++;
                 }
             }
-        }
-        int numberOfTrailingZeros = (bitsP.getSize() + 3) % 8;
-        numberOfTrailingZeros = (8 - numberOfTrailingZeros) % 8;
-        FixedSizeBitSet bitsFinal = new FixedSizeBitSet(3 + bitsP.getSize() + numberOfTrailingZeros);
-        int power = 2;
-        while (power >= 0) {
-            int powerOfTwo = (int)Math.pow(2, power);
-            if (numberOfTrailingZeros / powerOfTwo == 1) {
-                bitsFinal.getBits().set(2 - power);
-                numberOfTrailingZeros = numberOfTrailingZeros % powerOfTwo;
+            for (int i = 0; i < 7; i++) {
+                if (isPowerOfTwo(i + 1)) {
+                    if (!checkParity(i, i + 1, bitsFP)) {
+                        bitsFP.getBits().set(i);
+                    }
+                }
             }
-            power--;
-        }
-        for (i = 3; i < bitsP.getSize() + 3; i++) {
-            if (bitsP.getBits().get(i - 3) == true) {
-                bitsFinal.getBits().set(i);
+            FixedSizeBitSet bitsSP = new FixedSizeBitSet(7);
+            for (int i = 0, k = 4; i < 7; i++) {
+                if (!isPowerOfTwo(i + 1)) {
+                    if (s.charAt(k) == '1') {
+                        bitsSP.getBits().set(i);
+                    }
+                    k++;
+                }
             }
+            for (int i = 0; i < 7; i++) {
+                if (isPowerOfTwo(i + 1)) {
+                    if (!checkParity(i, i + 1, bitsSP)) {
+                        bitsSP.getBits().set(i);
+                    }
+                }
+            }
+            for (int i = 0; i < 7; i++) {
+                if (bitsFP.getBits().get(i) == true) {
+                    bits.getBits().set(i + index);
+                } else {
+                }
+            }
+            for (int i = 0; i < 7; i++) {
+                if (bitsSP.getBits().get(i) == true) {
+                    bits.getBits().set(i + 7 + index);
+                }
+            }
+            index += 14;
         }
-        return HelperMethods.bitSetToByteArray(bitsFinal);
+        return HelperMethods.bitSetToByteArray(bits);
     }
 
-    private static boolean checkParity(int index, int step, FixedSizeBitSet bits) {
+    private static boolean checkParity(int index, int step, FixedSizeBitSet  bits) {
         int sum = 0;
         int i = index;
         while (i < bits.getSize()) {
+            for (int j = i; j < i + step && j < bits.getSize(); j++) {
+                sum += bits.getBits().get(j) ? 1 : 0;
+            }
+            i += 2 * step;
+        }
+        return sum % 2 == 0;
+    }
+
+    private static boolean checkParity(int index, int endIndex, int step, FixedSizeBitSet  bits) {
+        int sum = 0;
+        int i = index;
+        while (i <= endIndex) {
             for (int j = i; j < i + step && j < bits.getSize(); j++) {
                 sum += bits.getBits().get(j) == true ? 1 : 0;
             }
             i += 2 * step;
         }
-        return sum % 2 == 1;
+        return sum % 2 == 0;
     }
 
     private static boolean isPowerOfTwo(int n) {
@@ -84,53 +101,41 @@ public class Hamming implements Encoder, Decoder {
 
     public byte[] decode(byte[] byteArray) {
         FixedSizeBitSet bits = HelperMethods.bitSetfromByteArray(byteArray);
-        int numberOfTrailingZeros = 0;
-        int power = 2;
-        for (int i = 0; i < 3; i++) {
-            numberOfTrailingZeros += (bits.getBits().get(i) == true ? 1 : 0) * (int)Math.pow(2, power);
-            power--;
-        }
+        FixedSizeBitSet decodedBits = new FixedSizeBitSet((int)Math.floor(byteArray.length / 1.75) * 8);
 
-        LinkedList<Integer> brokenParityBits = new LinkedList<>();
-        for (int i = 3; i < bits.getSize() - numberOfTrailingZeros; i++) {
-            if (isPowerOfTwo(i - 2)) {
-                if (checkParity(i, i - 2, bits)) {
-                    brokenParityBits.add(i);
+        for (int i = 0; i < bits.getSize() / 7; i++) {
+            int startIndex = i * 7;
+            int endIndex = i * 7 + 7;
+            LinkedList<Integer> brokenParityBits = new LinkedList<>();
+            for (int j = startIndex; j < endIndex; j++) {
+                if (isPowerOfTwo(j - startIndex + 1)) {
+                    if (!checkParity(j, endIndex, j - startIndex + 1, bits)) {
+                        brokenParityBits.add(j - startIndex + 1);
+                    }
+                }
+            }
+            int paritySum = 0;
+            for (int bit : brokenParityBits) {
+                paritySum += bit;
+            }
+            if (paritySum != 0) {
+                if (bits.getBits().get(startIndex + paritySum - 1)) {
+                    bits.getBits().clear(startIndex + paritySum - 1);
+                } else {
+                    bits.getBits().set(startIndex + paritySum - 1);
+                }
+            }
+            for (int j = startIndex, k = i * 4; j < endIndex; j++) {
+                if (!isPowerOfTwo(j - startIndex + 1)) {
+                    if (bits.getBits().get(j)) {
+                        decodedBits.getBits().set(k);
+                    }
+                    k++;
                 }
             }
         }
 
-        if (!brokenParityBits.isEmpty()) {
-            int sum = 0;
-            for (int i : brokenParityBits) {
-                sum += i;
-            }
-            bits.getBits().flip(sum);
-        }
-
-        int i = 1;
-        int j = 0;
-        while (i < bits.getSize() - numberOfTrailingZeros - 2) {
-            if (isPowerOfTwo(i)) {
-                j++;
-                i++;
-            } else {
-                i++;
-            }
-        }
-        int initialSize = bits.getSize() - numberOfTrailingZeros - 3 - j;
-        FixedSizeBitSet bitsFinal = new FixedSizeBitSet(initialSize);
-        j = 3;
-        for (i = 0; i < initialSize; i++) {
-            int k = 0;
-            while (isPowerOfTwo(j + k - 2)) {
-                k++;
-            }
-            if (bits.getBits().get(j + k) == true) {
-                bitsFinal.getBits().set(i);
-            }
-            j = j + k + 1;
-        }
-        return HelperMethods.bitSetToByteArray(bitsFinal);
+        return HelperMethods.bitSetToByteArray(decodedBits);
     }
 }
+
