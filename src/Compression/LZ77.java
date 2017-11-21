@@ -10,7 +10,7 @@ import java.util.Arrays;
 /**
  * Created by Timkabor on 11/20/2017.
  */
-public class LZ77 implements Compressor,Decompressor {
+public class LZ77 implements Compressor, Decompressor {
 
     // 12 bits to store maximum offset distance.
     public static final int MAX_WINDOW_SIZE = (1 << 12) - 1;
