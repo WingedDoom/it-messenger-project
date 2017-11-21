@@ -1,3 +1,5 @@
+package Coding;
+
 /**
  * Decodes the encoded data, so that it can be read by the user.
  */
