@@ -105,7 +105,7 @@ public class DataManager {
             for (int i = 0; i < length; i++) {
                 nameBytes[i] = encodedMessage[i + 1];
             }
-            String name = new String(nameBytes);
+            String name = "messenger_" + new String(nameBytes);
             byte[] fileBytes = new byte[encodedMessage.length - length - 1];
             for (int i = 0; i < fileBytes.length; i++) {
                 fileBytes[i] = encodedMessage[i + length + 1];

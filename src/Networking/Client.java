@@ -38,7 +38,21 @@ public class Client {
 		System.out.println("Send messages: ");
 		DataOutputStream output = new DataOutputStream(client.getOutputStream());
 		while (sc.hasNextLine()) {
-			byte[] bytes = dataManager.compressAndEncodeMessage(sc.nextLine());
+		    String line = sc.nextLine();
+		    String[] parts = line.split(" ");
+
+            byte[] bytes;
+
+		    if (parts.length > 1) {
+		        if (parts[0].equals("file")) {
+		            bytes = dataManager.compressAndEncodeFileAtPath(parts[1]);
+                    System.out.println("Sending file at path: " + parts[1]);
+                } else {
+		            bytes = dataManager.compressAndEncodeMessage(line);
+                }
+            } else {
+                bytes = dataManager.compressAndEncodeMessage(line);
+            }
 
 			output.writeInt(bytes.length);
 			output.write(bytes);
