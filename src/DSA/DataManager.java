@@ -1,3 +1,5 @@
+package DSA;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -25,7 +27,17 @@ public class DataManager {
         this.decompressor = decompressor;
     }
 
-    byte[] compressAndEncodeMessage(String message) {
+    public DataManager() {
+        RepetitionCoding rc = new RepetitionCoding();
+        this.encoder = rc;
+        this.decoder = rc;
+
+        Huffman h = new Huffman();
+        this.compressor = h;
+        this.decompressor = h;
+    }
+
+    public byte[] compressAndEncodeMessage(String message) {
         byte[] compressedMessage;
         try {
             compressedMessage = compressor.compress(message.getBytes());
@@ -42,7 +54,7 @@ public class DataManager {
         return fullCompressedMessage;
     }
 
-    byte[] compressAndEncodeFileAtPath(String path) {
+    public byte[] compressAndEncodeFileAtPath(String path) {
         File file = new File(path);
         String name = file.getName();
         int length = name.length();
@@ -68,7 +80,7 @@ public class DataManager {
         return fullCompressedFile;
     }
 
-    String getMessage(byte[] encodedMessage) {
+    public String getMessage(byte[] encodedMessage) {
         if (encodedMessage[0] == 0) {
             byte[] bytes = new byte[encodedMessage.length - 1];
             for (int i = 0; i < bytes.length; i++) {

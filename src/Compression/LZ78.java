@@ -4,71 +4,174 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Class for Lempel-Ziv compression and decompression algorithms.
+ */
+
 public class LZ78 implements Compressor, Decompressor {
-    //Save dictionary as Prefix Tree
-    private class Node {
-        private Map<Integer, Node> map = new HashMap<>(); //children of current node
-        private int bit;
-        private Node parent; //parent Node
-        private long nodeNum = 0; //Node number
 
-        //constructor with given Nobe number
-        Node(int num) {
-            this.parent = null;
-            this.nodeNum = num;
-        }
+    // Some necessary constant values for LZ78.
+    private static final int BITS_IN_BYTE = 8;
+    private static final int BYTES_OFFSET = 128;
 
-        //constructor with given parent, bit and number
-        private Node(Node par, int b, int num) {
-            this.parent = par;
-            this.bit = b;
-            this.nodeNum = num;
-        }
+    /**
+     * Performs Lempel-Ziv compression.
+     *
+     * @param toBeCompressed the bytes sequence to be compressed.
+     * @return the obtained compressed bytes sequence.
+     */
+    @Override
+    public byte[] compress(final byte[] toBeCompressed) {
+        int nodesAmount = 0;
+        ArrayList<Byte> compressedBytes = new ArrayList<>();
+        final long bitsAmount = toBeCompressed.length * BITS_IN_BYTE;
+        long position = 0;
+        LZ78Node root = new LZ78Node(nodesAmount++);
+        ArrayList<Integer> compressedBits = new ArrayList<>();
 
-        //add child to current Node with given bit and number
-        void addChild(int b, int num) {
-            map.put(b, new Node(this, b, num));
-        }
-
-        //return child of current node with given bit
-        Node getChild(int b) {
-            return map.get(b);
-        }
-
-        //check if current Node has child with given bit
-        boolean hasChild(int b) {
-            return map.containsKey(b);
-        }
-
-        //return Node number
-        long getNum() {
-            return this.nodeNum;
-        }
-
-        //return bit
-        int getBit() {
-            return this.bit;
-        }
-
-        //return bits sequence at path from root to current Node
-        ArrayList<Integer> getBits() {
-            ArrayList<Integer> bits = new ArrayList<>();
-            Node curNode = this;
-            while (curNode.parent != null) {
-                bits.add(0, curNode.getBit());
-                curNode = curNode.parent;
+        while (position < bitsAmount) {
+            LZ78Node curLZ78Node = root;
+            if (position == 0) {
+                // First bit linking with the root
+                compressedBits.add(getBit(toBeCompressed, position));
+                curLZ78Node.addChild(getBit(toBeCompressed, position), nodesAmount++);
+                position++;
             }
-            return bits;
+            // Looking for the longest bits sequence stored in the dictionary
+            while (position < bitsAmount && curLZ78Node.hasChild(getBit(toBeCompressed, position))) {
+                curLZ78Node = curLZ78Node.getChild(getBit(toBeCompressed, position));
+                position++;
+            }
+            ArrayList<Integer> curNodeNumAsBits = intToBits(curLZ78Node.getNum());
+            int numLen = (int) Math.ceil(Math.log(nodesAmount) / Math.log(2));
+
+            while (curNodeNumAsBits.size() < numLen)
+                curNodeNumAsBits.add(0, 0);
+
+            // Adding the current word number (as bits) to compressedBits
+            compressedBits.addAll(curNodeNumAsBits);
+            if (position < bitsAmount) {
+                compressedBits.add(getBit(toBeCompressed, position));
+                curLZ78Node.addChild(getBit(toBeCompressed, position), nodesAmount++);
+            }
+
+            while (compressedBits.size() >= BITS_IN_BYTE) {
+                // Adding the bytes that are full to compressedBytes
+                compressedBytes.add(bitsToByte(compressedBits));
+                for (int i = 0; i < BITS_IN_BYTE; i++)
+                    // Removing the bytes that are full from compressedBits
+                    compressedBits.remove(0);
+            }
+
+            position++;
         }
+
+        int uselessBitsAmount = 0;
+
+        if (compressedBits.size() > 0) {
+            while (compressedBits.size() < BITS_IN_BYTE) {
+                compressedBits.add(0);
+                uselessBitsAmount++;
+            }
+            // Adding the last bits to compressedBytes
+            compressedBytes.add(bitsToByte(compressedBits));
+        }
+        compressedBytes.add(0, (byte) (uselessBitsAmount - (BYTES_OFFSET - 1)));
+
+        // ArrayList of bytes converting to the output bytes array
+        byte[] compressed = new byte[compressedBytes.size()];
+        for (int i = 0; i < compressedBytes.size(); i++)
+            compressed[i] = compressedBytes.get(i);
+        return compressed;
     }
 
-    //return bit of byteArray at given position
-    private int getBit(byte[] byteArray, long pos) {
-        int value = byteArray[(int) (pos / 8)] + 128;
-        return (value >> (7 - pos % 8)) & 1;
+    /**
+     * Performs Lempel-Ziv decompression.
+     *
+     * @param toBeDecompressed the bytes sequence to be decompressed.
+     * @return the obtainde decompressed bytes sequence.
+     */
+    @Override
+    public byte[] decompress(byte[] toBeDecompressed) {
+        int nodesAmount = 0;
+        LZ78Node root = new LZ78Node(nodesAmount++);
+        Map<Long, LZ78Node> numToNode = new HashMap<>();
+        numToNode.put(root.getNum(), root);
+        ArrayList<Integer> decodedBits = new ArrayList<>();
+        ArrayList<Byte> decodedBytes = new ArrayList<>();
+        // Beginning with 8th position, since the first 8 bits are the numbers of useless bits at the end
+        long position = BITS_IN_BYTE;
+        long bitsAmount = BITS_IN_BYTE * toBeDecompressed.length;
+
+        int uselessBitsAmount = toBeDecompressed[0] + BYTES_OFFSET;
+
+        while (position < bitsAmount - uselessBitsAmount) {
+            // For k words in dictionary, the maximum bits for each word number coding is log2(k)
+            int numLen = (int) Math.ceil(Math.log(nodesAmount) / Math.log(2));
+            ArrayList<Integer> numAsBits = new ArrayList<>();
+            for (int i = 0; i < numLen; i++) {
+                numAsBits.add(getBit(toBeDecompressed, position));
+                position++;
+            }
+            long nodeNum = bitsToInt(numAsBits);
+            LZ78Node curLZ78Node = numToNode.get(nodeNum);
+            decodedBits.addAll(curLZ78Node.getBits());
+            if (position < bitsAmount - uselessBitsAmount) {
+                decodedBits.add(getBit(toBeDecompressed, position));
+                curLZ78Node.addChild(getBit(toBeDecompressed, position), nodesAmount++);
+                curLZ78Node = curLZ78Node.getChild(getBit(toBeDecompressed, position));
+                numToNode.put(curLZ78Node.getNum(), curLZ78Node);
+            }
+
+            while (decodedBits.size() >= BITS_IN_BYTE) {
+                // Adding the bytes that are full to compressedBytes
+                decodedBytes.add(bitsToByte(decodedBits));
+                for (int i = 0; i < BITS_IN_BYTE; i++)
+                    // Removing the bytes that are full from compressedBits
+                    decodedBits.remove(0);
+            }
+
+            position++;
+        }
+
+        // ArrayList of bytes converting to the output bytes array
+        byte[] decoded = new byte[decodedBytes.size()];
+        for (int i = 0; i < decodedBytes.size(); i++)
+            decoded[i] = decodedBytes.get(i);
+
+        return decoded;
     }
 
-    //convert int to bits sequence
+    /**
+     * Returns the required bit from the byte array.
+     *
+     * @param byteArray the given byte array
+     * @param position  the bit position
+     */
+    private int getBit(byte[] byteArray, long position) {
+        int value = byteArray[(int) (position / BITS_IN_BYTE)] + BYTES_OFFSET;
+        return (value >> (BITS_IN_BYTE - 1 - position % BITS_IN_BYTE)) & 1;
+    }
+
+    /**
+     * Converts the bits sequence to byte.
+     *
+     * @param bits the given bits sequence
+     * @return the obtained byte value
+     */
+    private byte bitsToByte(ArrayList<Integer> bits) {
+        int value = 0;
+        for (int i = 0; i < BITS_IN_BYTE; i++)
+            value |= bits.get(i) << (BITS_IN_BYTE - 1 - i);
+        return (byte) (value - BYTES_OFFSET);
+    }
+
+    /**
+     * Converts integer value to bits sequence.
+     *
+     * @param value the given integer value
+     * @return the obtained bits
+     */
     private ArrayList<Integer> intToBits(long value) {
         ArrayList<Integer> bits = new ArrayList<>();
         do {
@@ -78,138 +181,15 @@ public class LZ78 implements Compressor, Decompressor {
         return bits;
     }
 
-    //convert bits sequence to int
+    /**
+     * Converts the bits sequence to integer value.
+     *
+     * @param bits the given bits sequence
+     */
     private long bitsToInt(ArrayList<Integer> bits) {
         long value = 0;
         for (int i = 0; i < bits.size(); i++)
             value += (bits.get(i) << (bits.size() - i - 1));
         return value;
-    }
-
-    //convert bits sequence to byte
-    private byte bitsToByte(ArrayList<Integer> bits) {
-        int value = 0;
-        for (int i = 0; i < 8; i++)
-            value |= bits.get(i) << (7 - i);
-        return (byte) (value - 128);
-    }
-
-    @Override
-    public byte[] compress(final byte[] byteArray) {
-        int nodesCnt = 0; //number of nodes in Prefix Tree = number of words in dictionary
-        Node root = new Node(nodesCnt++); //create root of Prefix Tree
-        ArrayList<Integer> compressedAsBits = new ArrayList<>(); //bits sequence = compressed byteArray
-        ArrayList<Byte> compressedAsBytes = new ArrayList<>(); //bytes sequence of compressed byteArray
-        final long bitsCnt = byteArray.length * 8; //number of bits = 8 * number of bytes
-        long pos = 0; //current bit position at byteArray
-
-        //while current bit position is in byteArray
-        while (pos < bitsCnt) {
-            Node curNode = root;
-
-            //first bit automatically connected to root
-            if (pos == 0) {
-                compressedAsBits.add(getBit(byteArray, pos));
-                curNode.addChild(getBit(byteArray, pos), nodesCnt++);
-                pos++;
-            }
-
-            //find the longest bits sequence, which is in dictionary
-            while (pos < bitsCnt && curNode.hasChild(getBit(byteArray, pos))) {
-                curNode = curNode.getChild(getBit(byteArray, pos));
-                pos++;
-            }
-
-            ArrayList<Integer> curNodeNumAsBits = intToBits(curNode.getNum()); //current word number as bits sequence
-            int numLen = (int) Math.ceil(Math.log(nodesCnt) / Math.log(2)); /// if there are k words in dictionary, we need upper(log2(k)) bits to code each word number
-            //adding some 0 bits to beginning of current word number
-            while (curNodeNumAsBits.size() < numLen)
-                curNodeNumAsBits.add(0, 0);
-
-            //add current word number (as bits) to compressedAsBits
-            compressedAsBits.addAll(curNodeNumAsBits);
-            if(pos < bitsCnt) {
-                compressedAsBits.add(getBit(byteArray, pos));
-                curNode.addChild(getBit(byteArray, pos), nodesCnt++);
-            }
-
-            //add 'full' bytes to compressedAsBytes and delete them from compressedAsBits
-            while (compressedAsBits.size() >= 8) {
-                compressedAsBytes.add(bitsToByte(compressedAsBits));
-                for (int i = 0; i < 8; i++)
-                    compressedAsBits.remove(0);
-            }
-
-            pos++;
-        }
-
-        int dontUse = 0; //number of useless bits at the end
-
-        //add last bits to compressedAsBytes
-        if (compressedAsBits.size() > 0) {
-            while (compressedAsBits.size() < 8) {
-                compressedAsBits.add(0);
-                dontUse++;
-            }
-            compressedAsBytes.add(bitsToByte(compressedAsBits));
-        }
-
-        //add number of useless bits as first byte
-        compressedAsBytes.add(0, (byte) (dontUse - 127));
-
-        //convert ArrayList to byte array
-        byte[] compressed = new byte[compressedAsBytes.size()];
-        for (int i = 0; i < compressedAsBytes.size(); i++)
-            compressed[i] = compressedAsBytes.get(i);
-        return compressed;
-    }
-
-    @Override
-    public byte[] decompress(byte[] byteArray) {
-        int nodesCnt = 0; //number of words that are actually in dictionary = number of Nodes in Prefix Tree
-        Node root = new Node(nodesCnt++); //create root of PrefixTree
-        Map<Long, Node> numToNode = new HashMap<>(); //map for getting Node by its number
-        numToNode.put(root.getNum(), root); //add root to map
-        ArrayList<Integer> decodedAsBits = new ArrayList<>(); //bits sequence of decoded array
-        ArrayList<Byte> decodedAsBytes = new ArrayList<>(); //bytes sequence of decoded array
-
-        long pos = 8; //starts from 8th position, because first 8 bits = number of useless bits at end
-        long bitsCnt = 8 * byteArray.length; //number of bits = 8 * number of bytes
-
-        int dontUse = byteArray[0] + 128; //number of useless bits at the end
-
-        while (pos < bitsCnt - dontUse) {
-            int numLen = (int) Math.ceil(Math.log(nodesCnt) / Math.log(2)); /// if there are k words in dictionary, we need upper(log2(k)) bits to code each word number
-            ArrayList<Integer> numAsBits = new ArrayList<>(); //current word number
-            for (int i = 0; i < numLen; i++) {
-                numAsBits.add(getBit(byteArray, pos));
-                pos++;
-            }
-            long nodeNum = bitsToInt(numAsBits); //convect bits sequence to int
-            Node curNode = numToNode.get(nodeNum); //get node by its number
-            decodedAsBits.addAll(curNode.getBits()); //add node number to decodedAtB
-            if (pos < bitsCnt - dontUse) {
-                decodedAsBits.add(getBit(byteArray, pos)); //add next bit to decodedAsBits
-                curNode.addChild(getBit(byteArray, pos), nodesCnt++); //add child with given bit to current node
-                curNode = curNode.getChild(getBit(byteArray, pos)); //get new node
-                numToNode.put(curNode.getNum(), curNode); //add this new node to map numToNode
-            }
-
-            //add 'full' bytes to compressedAsBytes and delete them from compressedAsBits
-            while (decodedAsBits.size() >= 8) {
-                decodedAsBytes.add(bitsToByte(decodedAsBits));
-                for (int i = 0; i < 8; i++)
-                    decodedAsBits.remove(0);
-            }
-
-            pos++;
-        }
-
-        //convert ArrayList to byte array
-        byte[] decoded = new byte[decodedAsBytes.size()];
-        for (int i = 0; i < decodedAsBytes.size(); i++)
-            decoded[i] = decodedAsBytes.get(i);
-
-        return decoded;
     }
 }

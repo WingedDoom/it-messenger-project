@@ -1,8 +1,8 @@
 package Networking;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
+import DSA.DataManager;
+
+import java.io.*;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Scanner;
@@ -12,57 +12,75 @@ public class Client {
 	private String host;
 	private int port;
 	private String nickname;
+	private DataManager dataManager;
 
-	public static void main(String[] args) throws UnknownHostException, IOException {
+	public static void main(String[] args) throws IOException {
 		new Client("127.0.0.1", 12345).run();
 	}
 
 	public Client(String host, int port) {
 		this.host = host;
 		this.port = port;
+		this.dataManager = new DataManager();
 	}
 
-	public void run() throws UnknownHostException, IOException {
+	public void run() throws IOException {
 		// connect client to server
 		Socket client = new Socket(host, port);
 		System.out.println("Client successfully connected to server!");
 
 		// create a new thread for server messages handling
-		new Thread(new ReceivedMessagesHandler(client.getInputStream())).start();
+		new Thread(new ReceivedMessagesHandler(client.getInputStream(), this)).start();
 
-		// ask for a nickname
 		Scanner sc = new Scanner(System.in);
-		System.out.print("Enter a nickname: ");
-		nickname = sc.nextLine();
 
 		// read messages from keyboard and send to server
 		System.out.println("Send messages: ");
-		PrintStream output = new PrintStream(client.getOutputStream());
+		DataOutputStream output = new DataOutputStream(client.getOutputStream());
 		while (sc.hasNextLine()) {
-			output.println(nickname + ": " + sc.nextLine());
+			byte[] bytes = dataManager.compressAndEncodeMessage(sc.nextLine());
+
+			output.writeInt(bytes.length);
+			output.write(bytes);
 		}
 		
 		output.close();
 		sc.close();
 		client.close();
 	}
+
+    public DataManager getDataManager() {
+        return dataManager;
+    }
 }
 
 class ReceivedMessagesHandler implements Runnable {
 
 	private InputStream server;
+	private Client client;
 
-	public ReceivedMessagesHandler(InputStream server) {
+	public ReceivedMessagesHandler(InputStream server, Client client) {
 		this.server = server;
+		this.client = client;
 	}
 
 	@Override
 	public void run() {
 		// receive server messages and print out to screen
-		Scanner s = new Scanner(server);
-		while (s.hasNextLine()) {
-			System.out.println(s.nextLine());
-		}
-		s.close();
+        int length;
+        DataInputStream is = new DataInputStream(server);
+
+        try {
+            while ((length = is.readInt()) > 0) {
+                byte[] data = new byte[length];
+
+                is.readFully(data, 0, data.length);
+                String message = client.getDataManager().getMessage(data);
+
+                System.out.println("New message: " + message);
+            }
+        } catch (IOException e) {
+            System.out.println(e.getLocalizedMessage());
+        }
 	}
 }
